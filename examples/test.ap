@@ -25,7 +25,7 @@ intercept req TestingReqScope {
     set HEADER Connection: Keep-Alive
 }
 
-intercept resp TestingReqScope from TestingReqScope {
+intercept resp TestingRespScope from TestingReqScope {
     set STATUS_CODE: 200
     set STATUS_MESSAGE: Ok
 }
