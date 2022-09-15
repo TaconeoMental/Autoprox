@@ -1,0 +1,13 @@
+intercept resp {
+    method {
+        GET {
+            set STATUS_CODE: 302
+        }
+        POST {
+            set STATUS_CODE: 307
+        }
+        set HEADER Location: "http://localhost:9000/"
+    }
+}
+
+serve 0.0.0.0 8080

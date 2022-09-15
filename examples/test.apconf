@@ -1,0 +1,50 @@
+def SCOPE MainReqScope
+    HEADER Host is mateocontenla.com
+    & PORT is 80 // El operador lógico & se puede omitir acá
+    & HEADER User-Agent like "curl/.*"
+end
+
+def SCOPE TestingReqScope(MainReqScope)
+    PATH like "/api/v\d/.*" // Like espera un regex como argumento
+end
+
+def SCOPE TestingRespScope
+    HEADER Cookie like "^[0-9a-fA-F]{32}$"
+end
+
+// intercept req TestingReqScope as Int_Main {...
+// start Int_Main
+intercept req TestingReqScope {
+    #2 {
+        set HEADER {
+            User-Agent: AutoProx/1.1
+            Host: evilhost.com
+        }
+        delete HEADER Authorization
+    }
+    set HEADER Connection: Keep-Alive
+}
+
+intercept resp TestingReqScope from TestingReqScope {
+    set STATUS_CODE: 200
+    set STATUS_MESSAGE: Ok
+}
+
+// Lo de arriba es equivalente a esto:
+intercept TestingReqScope  {
+    req {
+        #2 set HEADER{
+            User-Agent: AutoProx/1.1
+            Host: evilhost.com
+        }
+        set HEADER Connection: Keep-Alive
+    }
+
+    // Interceptamos la respuesta si está en el scope TestingRespScope
+    resp TestingRespScope set {
+        STATUS_CODE: 200
+        STATUS_MESSAGE: Ok
+    }
+}
+
+serve 127.0.0.1 8081
