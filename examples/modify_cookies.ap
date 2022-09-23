@@ -1,7 +1,7 @@
 def SCOPE Main
     HEADER Host is www.test.com
     & HEADER User-Agent like "curl/.*"
-    & SCHEME HTTPS
+    & SCHEME is HTTPS
 end
 
 def SCOPE ScopeAPI(Main)
