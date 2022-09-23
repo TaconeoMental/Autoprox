@@ -4,7 +4,7 @@ syntax keyword apconfKeywords
     \ req
     \ resp
     \ from
-    \ method
+    \ when
 
 syntax keyword apconfInstructions
     \ append
@@ -27,10 +27,6 @@ syn keyword apconfBuiltin
     \ STATUS_CODE
     \ STATUS_MESSAGE
     \ SCOPE
-    \ GET
-    \ POST
-    \ HEAD
-    \ PUT
 
 syntax match apconfNumber "#\d\+"
 

@@ -13,19 +13,17 @@ def SCOPE BadLogin
     | STATUS_MESSAGE like ".*Unauthorized.*"
 end
 
-intercept req Main {
+intercept Main req {
     set HEADER User-Agent: "Mozilla/5.0 (Linux; Android 11) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36"
     #2 {
         delete HEADER Authorization
     }
 }
 
-intercept resp BadLogin from ScopeAPI {
-    set {
-        HEADER Set-Cookie: "PHPSESSID=el4ukv0kqbvoirg7nkp4dncpk3"
-        STATUS_CODE: 200
-        STATUS_MESSAGE: "OK"
-    }
+intercept ScopeAPI resp when BadLogin set {
+    HEADER Set-Cookie: "PHPSESSID=el4ukv0kqbvoirg7nkp4dncpk3"
+    STATUS_CODE: 200
+    STATUS_MESSAGE: "OK"
 }
 
 serve 127.0.0.1 8080

@@ -12,9 +12,7 @@ def SCOPE TestingRespScope
     HEADER Cookie like "^[0-9a-fA-F]{32}$"
 end
 
-// intercept req TestingReqScope as Int_Main {...
-// start Int_Main
-intercept req TestingReqScope {
+intercept TestingReqScope req {
     #2 {
         set HEADER {
             User-Agent: AutoProx/1.1
@@ -25,7 +23,7 @@ intercept req TestingReqScope {
     set HEADER Connection: Keep-Alive
 }
 
-intercept resp TestingRespScope from TestingReqScope {
+intercept TestingReqScope resp when TestingRespScope {
     set STATUS_CODE: 200
     set STATUS_MESSAGE: Ok
 }
@@ -33,15 +31,18 @@ intercept resp TestingRespScope from TestingReqScope {
 // Lo de arriba es equivalente a esto:
 intercept TestingReqScope  {
     req {
-        #2 set HEADER{
-            User-Agent: AutoProx/1.1
-            Host: evilhost.com
+        #2 {
+            set HEADER {
+                User-Agent: AutoProx/1.1
+                Host: evilhost.com
+            }
+            delete HEADER Authorization
         }
         set HEADER Connection: Keep-Alive
     }
 
     // Interceptamos la respuesta si está en el scope TestingRespScope
-    resp TestingRespScope set {
+    resp when TestingRespScope set {
         STATUS_CODE: 200
         STATUS_MESSAGE: Ok
     }
