@@ -2,10 +2,12 @@
 
 import argparse
 
-from src.logger import LOGGER
+from src.logger import LOGGER, LEVEL_WARN
 from src.proxy import Proxy
+from src.parser.conf_file import ConfigFile
+from src.parser.lexer import Lexer
+from src.parser.error_collector import ErrorCollector, CompilerException
 
-# https://stackoverflow.com/questions/10085996/shutdown-socketserver-serve-forever-in-one-thread-python-application/22533929#22533929
 
 def main():
     argparser = argparse.ArgumentParser()
@@ -16,9 +18,25 @@ def main():
     parsed_args = argparser.parse_args()
 
     if parsed_args.quiet:
-        LOGGER.quiet()
+        LOGGER.set_level(LEVEL_WARN)
     else:
         LOGGER.set_level(parsed_args.v)
+
+    try:
+        conf_file = ConfigFile(parsed_args.source)
+        err_coll = ErrorCollector(conf_file)
+        lexer = Lexer(conf_file, err_coll)
+        lexer.run()
+        """
+        for t in lexer.tokens:
+            LOGGER.ERROR("T: {} => {}", str(t), t.value)
+        err_coll.show_errors()
+        """
+        if err_coll.has_errors():
+            err_coll.show_errors()
+    except CompilerException as e:
+        LOGGER.ERROR(e)
+        return
 
     main_proxy = Proxy("0.0.0.0", 8081)
     #main_proxy.set_config_file(parsed_args.source)

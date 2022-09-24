@@ -4,7 +4,7 @@ syntax keyword apconfKeywords
     \ req
     \ resp
     \ from
-    \ when
+    \ if
 
 syntax keyword apconfInstructions
     \ append

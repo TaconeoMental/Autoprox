@@ -1,0 +1,74 @@
+CHARACTER      = "A" ... "Z"
+               | "a" ... "z"
+               | "_";
+DECIMAL_DIGIT  = "0" ... "9";
+LITERAL_INT    = (DECIMAL_DIGIT - "0"), {DECIMAL_DIGIT};
+LITERAL_STR    = '"', *, '"';
+LITERAL        = LITERAL_INT
+               | LITERAL_STR;
+IDENTIFIER     = CHARACTER, {CHARACTER | DECIMAL_DIGIT};
+ID_LIST        = IDENTIFIER, {",", IDENTIFIER};
+TYPE           = "METHOD"
+               | "SCHEME"
+               | "DOMAIN"
+               | "PORT"
+               | "PATH"
+               | "PARAMETERS"
+               | "VERSION"
+               | "HEADER"
+               | "STATUS_CODE"
+               | "STATUS_MESSAGE"
+               | "SCOPE";
+VARIABLE       = TYPE, [IDENTIFIER];
+ACTION         = ACTION_SET
+               | ACTION_DEL;
+ACTION_SET     = "set", TYPE, [IDENTIFIER], ":", LITERAL;
+ACTION_DEL     = "del", TYPE, [IDENTIFIER];
+ASSIGN_STMT    = IDENTIFIER, ":", LITERAL_STR;
+EXPRESSION     = EXPR_BOOL_OR;
+EXPR_BOOL_OR   = EXPR_BOOL_AND, {"|", EXPR_BOOL_AND};
+EXPR_BOOL_AND  = EXPR_PRIM, {"&", EXPR_PRIM};
+EXPR_PRIM      = EXPR_COMP
+               | "(", EXPRESSION, ")";
+EXPR_COMP      = VARIABLE, EXPR_COMP_T, LITERAL_STR;
+EXPR_COMP_T    = "is", ["not"]
+               | "like";
+DEFINE_STMT    = "def", DEFINE_VAR, DEFINE_INH, DEFINE_VALUE;
+DEFINE_VAR     = TYPE, IDENTIFIER;
+DEFINE_INH     = "(", ID_LIST, ")"
+               | eps;
+DEFINE_VALUE   = LITERAL
+               | DEFINE_BODY;
+DEFINE_BODY    = DEFINE_BODY_T, "end";
+DEFINE_BODY_T  = ASSIGN_STMT, {ASSIGN_STMT}
+               | EXPRESSION;
+INTERCEPT_STMT = "intercept", INTER_WHAT, INTER_COND, INTER_ACTION, INTER_BODY;
+INTERCEPT_TYPE = "req"
+               | "resp";
+INTER_WHAT     = IDENTIFIER, INTER_WHAT_2;
+               | INTER_WHAT_2
+               | eps;
+INTER_WHAT_2   = INTERCEPT_TYPE, INTER_WHAT_3
+               | INTER_WHAT_3
+               | eps;
+INTER_WHAT_3   = "#", LITERAL_INT,
+               | eps;
+INTER_COND     = EXPR_COMP
+               | eps;
+INTER_ACTION   = INTER_ACT_S
+               | INTER_ACT_D;
+INTER_ACT_S    = "set", INTER_ACT_S_2;
+INTER_ACT_S_2  = VARIABLE, INTER_ACT_S_3
+               | eps;
+INTER_ACT_S_3  = ":", LITERAL
+               | eps;
+INTER_BODY     = "{", INTER_BODY_T, "}";
+INTER_BODY_T   = ACTION
+               | INTER_FILTER;
+INTER_FILTER   = {INTER_MINI};
+INTER_MINI     = INTER_WHAT, INTER_COND, INTER_ACTION, INTER_BODY;
+SERVE_STMT     = "serve", IP, LITERAL_INT;
+IP             = LITERAL_INT, ".", LITERAL_INT, ".", LITERAL_INT, ".", LITERAL_INT;
+FL_STATEMENT   = DEFINE_STMT
+               | INTERCEPT_STMT;
+PROGRAM        = {FL_STATEMENT}, SERVE_STMT;

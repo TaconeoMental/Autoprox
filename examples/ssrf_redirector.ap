@@ -1,14 +1,14 @@
 intercept resp {
-    when METHOD {
-        is GET set STATUS_CODE: 302
-        is POST set STATUS_CODE: 307
+    if METHOD {
+        is "GET" set STATUS_CODE: 302
+        is "POST" set STATUS_CODE: 307
     }
     set HEADER Location: "http://localhost:9000/"
 }
 
 // Equivalente
-intercept resp when METHOD is GET set STATUS_CODE: 302
-intercept resp when METHOD is POST set STATUS_CODE: 307
+intercept resp if METHOD is "GET" set STATUS_CODE: 302
+intercept resp if METHOD is "POST" set STATUS_CODE: 307
 intercept resp set HEADER Location: "http://localhost:9000/"
 
 serve 0.0.0.0 8080

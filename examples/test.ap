@@ -1,6 +1,6 @@
 def SCOPE MainReqScope
-    HEADER Host is mateocontenla.com
-    & PORT is 80 // El operador lógico & se puede omitir acá
+    HEADER Host is "mateocontenla.com"
+    & PORT is 80
     & HEADER User-Agent like "curl/.*"
 end
 
@@ -12,37 +12,36 @@ def SCOPE TestingRespScope
     HEADER Cookie like "^[0-9a-fA-F]{32}$"
 end
 
+def HEADER main_headers
+    User-Agent: "AutoProx/1.1"
+    Host: "evilhost.com"
+end
+
 intercept TestingReqScope req {
     #2 {
-        set HEADER {
-            User-Agent: AutoProx/1.1
-            Host: evilhost.com
-        }
+        set HEADER main_headers
         delete HEADER Authorization
     }
-    set HEADER Connection: Keep-Alive
+    set HEADER Connection: "Keep-Alive"
 }
 
-intercept TestingReqScope resp when TestingRespScope {
-    set STATUS_CODE: 200
-    set STATUS_MESSAGE: Ok
+intercept TestingReqScope resp if SCOPE is TestingRespScope set {
+    STATUS_CODE: 200
+    STATUS_MESSAGE: "Ok"
 }
 
 // Lo de arriba es equivalente a esto:
 intercept TestingReqScope  {
     req {
         #2 {
-            set HEADER {
-                User-Agent: AutoProx/1.1
-                Host: evilhost.com
-            }
+            set HEADER main_headers
             delete HEADER Authorization
         }
         set HEADER Connection: Keep-Alive
     }
 
     // Interceptamos la respuesta si está en el scope TestingRespScope
-    resp when TestingRespScope set {
+    resp if SCOPE is TestingRespScope set {
         STATUS_CODE: 200
         STATUS_MESSAGE: Ok
     }

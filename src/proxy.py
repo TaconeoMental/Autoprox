@@ -4,7 +4,7 @@ import subprocess
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from functools import partial
 
-from .logger import LOGGER
+from src.logger import LOGGER
 
 CERTS_DIR = "certs"
 CACERT_PATH = op.join(CERTS_DIR, "cacert.crt")
@@ -66,7 +66,7 @@ class Proxy:
         try:
             handler = partial(ProxyRequestHandler, "test")
 
-            LOGGER.INFO("Serving proxy on {}:{}", *address)
+            LOGGER.GOOD("Serving proxy on {}:{}", *address)
             httpd = HTTPServer(address, handler)
             httpd.serve_forever()
         except KeyboardInterrupt:

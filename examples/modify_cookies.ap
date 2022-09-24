@@ -20,7 +20,7 @@ intercept Main req {
     }
 }
 
-intercept ScopeAPI resp when BadLogin set {
+intercept ScopeAPI resp if SCOPE is BadLogin set {
     HEADER Set-Cookie: "PHPSESSID=el4ukv0kqbvoirg7nkp4dncpk3"
     STATUS_CODE: 200
     STATUS_MESSAGE: "OK"
