@@ -16,11 +16,14 @@ def n_digits(n):
 
 class ErrorCollector:
     def __init__(self, source):
-        self.errors = list()
+        self.errors = dict()
         self.source = source
 
     def add_error(self, err):
-        self.errors.append(err)
+        fn = err.sp.filename
+        if fn not in self.errors:
+            self.errors[fn] = list()
+        self.errors[fn].append(err)
 
     def has_errors(self):
         return len(self.errors) != 0
@@ -36,15 +39,22 @@ class ErrorCollector:
 
     def format_error(self, err):
         full_line = self.get_full_line(err.sp)
+        full_line_n = full_line.strip()
         desc = repr(err.desc).strip('"')
-        error_string = f"Error: {desc}\n\t{err.sp.line}| {full_line}\n\t"
-        error_string += " " * (err.sp.column + n_digits(err.sp.line) + 1) + "^"
+        error_string = f"Error: {desc}\n\t{err.sp.line}| {full_line_n}\n\t"
+        padding = err.sp.column + n_digits(err.sp.line) + 1 - len(full_line) + len(full_line_n)
+        error_string += " " * padding + "^"
         return error_string
 
-    def show_errors(self):
-        for err in self.errors:
-            print(err.sp.filename)
-            print(f"\t{self.format_error(err)}")
+    def raise_error(self):
+        error_count = 0
+        for errors in self.errors.values():
+            error_count += len(errors)
+        raise CompilerException(f"{error_count} {'errors' if error_count > 1 else 'error'}", "Autoprox")
 
-        l = len(self.errors)
-        raise CompilerException(f"{l} {'errors' if l > 1 else 'error'}", "Autoprox")
+    def show_errors(self):
+        for file in self.errors:
+            print(f'File "{file}":')
+            for err in self.errors[file]:
+                print(f"\t{self.format_error(err)}")
+        self.raise_error()

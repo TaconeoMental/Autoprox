@@ -30,10 +30,10 @@ keywords = {
 }
 
 def is_valid_first_id_char(c):
-    return c.isalpha() or c == "_"
+    return c.isalpha() or c in "_-"
 
 def is_valid_id_char(c):
-    return c.isalnum() or c == "_"
+    return c.isalnum() or c in "_-"
 
 def is_keyword(k):
     return k in keywords
@@ -51,6 +51,18 @@ class Lexer:
 
         self.current_char = str()
         self.peek_char = self.source[self.column_number]
+
+    def print_tokens(self):
+        max_len = 0
+        for t in self.tokens:
+            max_len = max(max_len, len(str(t)))
+        max_len += 1
+        LOGGER.INFO("Token{}Value", " " * (max_len - 3))
+        for t in self.tokens:
+            wp = ' ' * (max_len - len(str(t)))
+            val = f"= {t.value}" if t.value else ""
+            print(f"    {t}{wp}{val}")
+
 
     def push_char(self):
         self.current_char = self.peek_char
@@ -82,6 +94,15 @@ class Lexer:
                     self.push_char()
                     return False
                 self.push_char()
+            self.add_token(tt, lit)
+            return True
+        elif self.current_char == "#":
+            tt = TokenType.LITERAL_NUM
+            while self.peek_char.isdigit():
+                self.push_char()
+                lit += self.current_char
+            if not lit:
+                self.add_syntax_error('"#" must be followed by digits')
             self.add_token(tt, lit)
             return True
         elif self.current_char.isdigit():
@@ -132,10 +153,14 @@ class Lexer:
                 tt = TokenType.OPERATOR_OPEN_C
             case "}":
                 tt = TokenType.OPERATOR_CLOSE_C
+            case "(":
+                tt = TokenType.OPERATOR_OPEN_P
+            case ")":
+                tt = TokenType.OPERATOR_CLOSE_P
             case _:
                 return False
-        self.push_char()
         self.add_token(tt)
+        return True
 
     def check_comment(self):
         if self.current_char == "/" and self.peek_char == "/":

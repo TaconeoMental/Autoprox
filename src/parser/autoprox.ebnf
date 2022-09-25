@@ -37,10 +37,10 @@ DEFINE_STMT    = "def", DEFINE_VAR, DEFINE_INH, DEFINE_VALUE;
 DEFINE_VAR     = TYPE, IDENTIFIER;
 DEFINE_INH     = "(", ID_LIST, ")"
                | eps;
-DEFINE_VALUE   = LITERAL
+DEFINE_VALUE   = ":", LITERAL
                | DEFINE_BODY;
 DEFINE_BODY    = DEFINE_BODY_T, "end";
-DEFINE_BODY_T  = ASSIGN_STMT, {ASSIGN_STMT}
+DEFINE_BODY_T  = {ASSIGN_STMT}
                | EXPRESSION;
 INTERCEPT_STMT = "intercept", INTER_WHAT, INTER_COND, INTER_ACTION, INTER_BODY;
 INTERCEPT_TYPE = "req"
@@ -53,7 +53,7 @@ INTER_WHAT_2   = INTERCEPT_TYPE, INTER_WHAT_3
                | eps;
 INTER_WHAT_3   = "#", LITERAL_INT,
                | eps;
-INTER_COND     = EXPR_COMP
+INTER_COND     = "if", EXPR_COMP
                | eps;
 INTER_ACTION   = INTER_ACT_S
                | INTER_ACT_D;

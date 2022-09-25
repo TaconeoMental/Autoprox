@@ -4,3 +4,6 @@ class SourcePosition:
         self.line = line
         self.column = column
         self.line_start = line_start
+
+    def __repr__(self):
+        return f"{self.filename}(L={self.line}, C={self.column}, LS={self.line_start})"

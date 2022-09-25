@@ -70,6 +70,7 @@ class Proxy:
             httpd = HTTPServer(address, handler)
             httpd.serve_forever()
         except KeyboardInterrupt:
+            print() # Para más placer
             LOGGER.ERROR("Shutting down proxy")
             httpd.shutdown()
             httpd.server_close()
