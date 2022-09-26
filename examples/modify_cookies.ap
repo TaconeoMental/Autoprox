@@ -1,11 +1,12 @@
 def SCOPE Main
-    HEADER Host is www.test.com
+    HEADER Host is "www.test.com"
     & HEADER User-Agent like "curl/.*"
-    & SCHEME is HTTPS
+    & SCHEME is "HTTPS" // TODO: Hacer HTTP y HTTPS keywords?
 end
 
-def SCOPE ScopeAPI(Main)
-    PATH like "^/api/v\d/login$"
+def SCOPE ScopeAPI
+    in Main
+    & PATH like "^/api/v\d/login$"
 end
 
 def SCOPE BadLogin
@@ -20,7 +21,7 @@ intercept Main req {
     }
 }
 
-intercept ScopeAPI resp if SCOPE is BadLogin set {
+intercept ScopeAPI resp if in BadLogin set {
     HEADER Set-Cookie: "PHPSESSID=el4ukv0kqbvoirg7nkp4dncpk3"
     STATUS_CODE: 200
     STATUS_MESSAGE: "OK"

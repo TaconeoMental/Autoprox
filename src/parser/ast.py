@@ -27,11 +27,22 @@ class Program:
         for index, stmt in enumerate(self.statements):
             stmt.pp_tree(indent, index == len(self.statements) - 1)
 
+class StatementList:
+    def __init__(self):
+        self.statements = list()
+
+    def pp_tree(self, indent, last):
+        print(indent, end="")
+        indent += pp_indentation(last)
+
+        print("StatementList")
+        print(indent + AST_LAST + "Statements")
+        for index, stmt in enumerate(self.statements):
+            stmt.pp_tree(indent + AST_SPACE, index == len(self.statements) - 1)
 
 class DefineStatement:
     def __init__(self):
         self.token = None
-        self.type = None
         self.name = None
         self.identifier = None
         self.value = None
@@ -43,9 +54,6 @@ class DefineStatement:
         print("DefineStatement")
         print(indent + AST_MIDDLE + "Name")
         self.identifier.pp_tree(indent + AST_LINE, True)
-
-        print(indent + AST_MIDDLE + "Type")
-        self.type.pp_tree(indent + AST_LINE, True)
 
         print(indent + AST_LAST + "Value")
         self.value.pp_tree(indent + AST_SPACE, True)
@@ -82,15 +90,14 @@ class InterceptStatement:
         print(indent + AST_MIDDLE + "What")
         self.what.pp_tree(indent + AST_LINE, True)
 
-        print(indent + AST_LAST + "Condition")
-        self.condition.pp_tree(indent + AST_SPACE, True)
+        print(indent + AST_MIDDLE + "Condition")
+        self.condition.pp_tree(indent + AST_LINE, True)
 
-        #print(indent + AST_MIDDLE + "Action")
-        #self.action.pp_tree(indent + AST_LINE, True)
+        print(indent + AST_MIDDLE + "Action")
+        self.action.pp_tree(indent + AST_LINE, True)
 
-        #print(indent + AST_LAST + "Body")
-        #for index, value in enumerate(self.body):
-            #value.pp_tree(indent + AST_SPACE, index = len(self.body) - 1)
+        print(indent + AST_LAST + "Body")
+        self.body.pp_tree(indent + AST_SPACE, True)
 
 class InterceptStatementWhat:
     def __init__(self):
@@ -126,19 +133,19 @@ class InterceptType:
 class InterceptStatementActionSet:
     def __init__(self):
         self.token = None
-        self.operand = None
-        self.body = None
+        self.what = None
+        self.value = None
 
     def pp_tree(self, indent, last):
         print(indent, end="")
         indent += pp_indentation(last)
         print("InterceptStatementActionSet")
 
-        print(indent + AST_MIDDLE + "Operand")
-        self.operand.pp_tree(indent + AST_LINE, True)
+        print(indent + AST_MIDDLE + "What")
+        self.what.pp_tree(indent + AST_LINE, True)
 
-        print(indent + AST_LAST + "Body")
-        self.body.pp_tree(indent + AST_SPACE, True)
+        print(indent + AST_LAST + "Value")
+        self.value.pp_tree(indent + AST_SPACE, True)
 
 class InterceptStatementActionVerb:
     def __init__(self, tok, val):
@@ -150,27 +157,12 @@ class InterceptStatementActionVerb:
         indent += pp_indentation(last)
         print("InterceptStatementActionVerb")
 
-
-class InterceptStatementActionSet:
-    def __init__(self):
-        self.token = None
-        self.name = None
-        self.value = None
-
-    def pp_tree(self, indent, last):
-        print(indent, end="")
-        indent += pp_indentation(last)
-        print("InterceptStatementActionAssign")
-
-        print(indent + AST_MIDDLE + "Name")
-        self.name.pp_tree(indent + AST_LINE, True)
-
-        print(indent + AST_MIDDLE + "Value")
-        self.value.pp_tree(indent + AST_LINE, True)
-
 class Empty:
     def __init__(self):
         pass
+
+    def __bool__(self):
+        return False
 
     def pp_tree(self, indent, last):
         print(indent, end="")
@@ -254,3 +246,20 @@ class BinaryOperationExpression:
 
         print(indent + AST_LAST + "Right")
         self.right.pp_tree(indent + AST_SPACE, True)
+
+class UnaryOperationExpression:
+    def __init__(self, o, v):
+        self.operator = o
+        self.operand = v
+
+    def pp_tree(self, indent, last):
+        print(indent, end="")
+        indent += pp_indentation(last)
+
+        print("unaryOperationExpression")
+
+        print(indent + AST_MIDDLE + "Operator")
+        print(indent + AST_LINE + str(self.operator))
+
+        print(indent + AST_LAST + "Operand")
+        self.operand.pp_tree(indent + AST_SPACE, True)

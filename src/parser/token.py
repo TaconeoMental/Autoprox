@@ -38,13 +38,14 @@ class TokenType:
     OPERATOR_IS      = 0x1D
     OPERATOR_NOT     = 0x1E
     OPERATOR_LIKE    = 0x1F
+    OPERATOR_IN      = 0x20
 
-    OPERATOR_COMMA   = 0x20
-    OPERATOR_COLON   = 0x21
-    OPERATOR_OPEN_P  = 0x22
-    OPERATOR_CLOSE_P = 0x23
-    OPERATOR_OPEN_C  = 0x24
-    OPERATOR_CLOSE_C = 0x25
+    OPERATOR_COMMA   = 0x21
+    OPERATOR_COLON   = 0x22
+    OPERATOR_OPEN_P  = 0x23
+    OPERATOR_CLOSE_P = 0x24
+    OPERATOR_OPEN_C  = 0x25
+    OPERATOR_CLOSE_C = 0x26
 
 def token_string(token):
     match token:
@@ -112,6 +113,8 @@ def token_string(token):
             return "not"
         case TokenType.OPERATOR_LIKE:
             return "like"
+        case TokenType.OPERATOR_IN:
+            return "in"
         case TokenType.OPERATOR_COMMA:
             return ","
         case TokenType.OPERATOR_COLON:

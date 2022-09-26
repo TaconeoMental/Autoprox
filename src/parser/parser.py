@@ -7,8 +7,7 @@ from src.logger import LOGGER
 def is_value_type(tt):
     valid_types = [
         TokenType.KEY_T_PARAMS,
-        TokenType.KEY_T_HEADER,
-        TokenType.KEY_T_SCOPE
+        TokenType.KEY_T_HEADER
     ]
     return tt in valid_types
 
@@ -22,6 +21,7 @@ def is_empty_type(tt):
         TokenType.KEY_T_VERSION,
         TokenType.KEY_T_ST_CD,
         TokenType.KEY_T_ST_MSG,
+        TokenType.KEY_T_SCOPE
     ]
     return tt in valid_types
 
@@ -70,7 +70,7 @@ class Parser:
         else:
             tok = self.peek_token
         self.add_parse_error(tok,
-                             "Expected '{}'. but got '{}' instead.",
+                             "Expected '{}'. but got '{}' instead",
                              token_string(expect), self.peek_token)
         self.push_token()
         return False
@@ -107,9 +107,8 @@ class Parser:
     def parse_define_statement(self):
         stmt = ast.DefineStatement()
         stmt.token = self.current_token
-        stmt.type = self.parse_value_type()
-        if not self.consume_peek(TokenType.IDENTIFIER):
-            return False
+        self.consume_peek(TokenType.KEY_T_SCOPE)
+        self.consume_peek(TokenType.IDENTIFIER)
         stmt.identifier = ast.Identifier(self.current_token.value,
                                          self.current_token)
         # TODO: Añadir herencia
@@ -117,8 +116,7 @@ class Parser:
             stmt.value = self.parse_define_value()
         else:
             stmt.value = self.parse_expression()
-            if not self.consume_peek(TokenType.KEY_END):
-                return False
+            self.consume_peek(TokenType.KEY_END)
         return stmt
 
     def parse_intercept_statement(self):
@@ -127,7 +125,13 @@ class Parser:
         stmt.what = self.parse_intercept_what()
         stmt.condition = self.parse_intercept_condition()
         stmt.action = self.parse_intercept_action()
-        #stmt.body = self.parse_intercept_body()
+        if stmt.action and stmt.action.value:
+            if self.peek_token_equals(TokenType.OPERATOR_OPEN_C):
+                self.add_parse_error(self.peek_token,
+                                     "This intercept is complete, it can't have a body")
+            stmt.body = ast.StatementList()
+        else:
+            stmt.body = self.parse_intercept_body()
         return stmt
 
     def parse_intercept_what(self):
@@ -171,14 +175,13 @@ class Parser:
             case TokenType.KEY_A_DELETE:
                 self.push_token()
                 return self.parse_intercept_action_delete()
+        return ast.Empty()
 
     def parse_intercept_action_set(self):
         action = ast.InterceptStatementActionSet()
         action.token = self.current_token
         if self.peek_token_equals(TokenType.OPERATOR_OPEN_C):
-            action.operand = ast.Empty()
-            action.body = self.parse_intercept_body()
-            return action
+            return ast.Empty()
         else:
             return self.parse_intercept_action_set_2(action)
 
@@ -187,26 +190,51 @@ class Parser:
             self.push_token()
             t = ast.TypeIdentifier(self.current_token.value, self.current_token)
             if self.peek_token_equals(TokenType.OPERATOR_OPEN_C):
-                action.operand = t
-                action.body = self.parse_intercept_body()
+                action.what = t
+                action.value = self.parse_intercept_body()
             else:
                 var = ast.Variable()
                 var.type = t
                 self.consume_peek(TokenType.IDENTIFIER)
                 var.name = ast.Identifier(self.current_token.value,
                                           self.current_token)
-                action.operand = var
+                action.what = var
                 self.consume_peek(TokenType.OPERATOR_COLON)
-                action.body = self.parse_literal()
+                action.value = self.parse_literal()
         elif is_empty_type(self.peek_token.kind):
             self.push_token()
-            action.operand = ast.TypeIdentifier(self.current_token.value)
+            action.what = ast.TypeIdentifier(self.current_token.value,
+                                                self.current_token)
             self.consume_peek(TokenType.OPERATOR_COLON)
-            action.body = self.parse_literal()
+            action.value = self.parse_literal()
+        else:
+            self.add_parse_error(self.peek_token,
+                                 "Unknown type '{}'",
+                                 self.peek_token.value)
+            return False
         return action
 
     def parse_intercept_body(self):
-        pass
+        stmts = ast.StatementList()
+        if self.peek_token_equals(TokenType.OPERATOR_OPEN_C):
+            self.consume_peek(TokenType.OPERATOR_OPEN_C)
+            while not self.peek_token_equals(TokenType.OPERATOR_CLOSE_C):
+                statement = self.parse_intercept_body_statement()
+                if statement:
+                    stmts.statements.append(statement)
+                self.push_token()
+            self.consume_peek(TokenType.OPERATOR_CLOSE_C)
+        if not stmts.statements:
+            stmts.statements.append(ast.Empty())
+        return stmts
+
+    def parse_intercept_body_statement(self):
+        stmt = ast.InterceptStatement()
+        if self.peek_token_equals(TokenType.IDENTIFIER):
+            self.push_token()
+            stmt.what = self.parse_intercept_what()
+        return stmt
+
 
     def parse_value_type(self):
         if is_value_type(self.peek_token.kind):
@@ -217,6 +245,13 @@ class Parser:
 
     def parse_empty_type(self):
         if is_empty_type(self.current_token.kind):
+            return ast.TypeIdentifier(self.current_token.value,
+                                      self.current_token)
+        return False
+
+    def parse_type(self):
+        if is_empty_type(self.peek_token.kind) or is_value_type(self.peek_token.kind):
+            self.push_token()
             return ast.TypeIdentifier(self.current_token.value,
                                       self.current_token)
         return False
@@ -234,8 +269,8 @@ class Parser:
             return ast.Literal(self.current_token, self.current_token.value)
         self.push_token()
         self.add_parse_error(self.current_token,
-                             "'{}' cannot be used as a literal value.",
-                             self.current_token)
+                             "'{}' cannot be used as a literal value",
+                             self.current_token.value)
         return False
 
     def parse_expression(self):
@@ -254,8 +289,9 @@ class Parser:
         expr = self.parse_primary_expression()
         while self.peek_token_equals(TokenType.OPERATOR_AND):
             self.push_token()
+            op = self.current_token
             right = self.parse_primary_expression()
-            expr = ast.BinaryOperationExpression(self.current_token, expr, right)
+            expr = ast.BinaryOperationExpression(op, expr, right)
         return expr
 
     def parse_primary_expression(self):
@@ -268,10 +304,24 @@ class Parser:
         return operand
 
     def parse_compare_expression(self):
+        if self.peek_token_equals(TokenType.OPERATOR_NOT) or self.peek_token_equals(TokenType.OPERATOR_IN):
+            return self.parse_unary_operation()
+
         v = self.parse_operand()
         op = self.parse_compare_operation()
         l = self.parse_literal()
         return ast.BinaryOperationExpression(op, v, l)
+
+    def parse_unary_operation(self):
+        self.push_token()
+        operator = self.current_token
+        if self.peek_token_equals(TokenType.IDENTIFIER):
+            self.push_token()
+            operand = ast.Identifier(self.current_token.value,
+                                     self.current_token)
+        else:
+            operand = self.parse_primary_expression()
+        return ast.UnaryOperationExpression(operator, operand)
 
     def parse_compare_operation(self):
         match self.peek_token.kind:
@@ -286,8 +336,8 @@ class Parser:
             case _:
                 self.push_token()
                 self.add_parse_error(self.current_token,
-                                     "'{}' is not a valid comparison operator.",
-                                     self.current_token)
+                                     "Unexpected '{}' in comparison ",
+                                     self.current_token.value)
                 return False
 
     def parse_operand(self):
@@ -303,4 +353,5 @@ class Parser:
             self.push_token()
             return ast.TypeIdentifier(self.current_token.value, self.current_token)
         else:
+            print("Test")
             return False

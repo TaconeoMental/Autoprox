@@ -17,6 +17,10 @@ class ConfigFile:
     def get_filename(self):
         return os.path.basename(self.path)
 
+    def get_path(self):
+        return os.path.abspath(self.path)
+
+
     def push_line_index(self, index):
         self.line_indexes.append(index)
 

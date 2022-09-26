@@ -26,7 +26,8 @@ keywords = {
     "set": TokenType.KEY_A_SET,
     "is": TokenType.OPERATOR_IS,
     "not": TokenType.OPERATOR_NOT,
-    "like": TokenType.OPERATOR_LIKE
+    "like": TokenType.OPERATOR_LIKE,
+    "in": TokenType.OPERATOR_IN
 }
 
 def is_valid_first_id_char(c):
@@ -98,44 +99,41 @@ class Lexer:
             return True
         elif self.current_char == "#":
             tt = TokenType.LITERAL_NUM
-            while self.peek_char.isdigit():
-                self.push_char()
+            self.push_char()
+            while self.current_char.isdigit():
                 lit += self.current_char
-            if not lit:
-                self.add_syntax_error('"#" must be followed by digits')
+                self.push_char()
+            if not self.current_char.isspace():
+                self.add_syntax_error("'#' must be only followed by digits")
             self.add_token(tt, lit)
             return True
         elif self.current_char.isdigit():
             tt = TokenType.LITERAL_INT
             lit += self.current_char
-            while self.peek_char.isdigit():
-                self.push_char()
+            self.push_char()
+            while self.current_char.isdigit():
                 lit += self.current_char
-            if self.peek_char == ".":
-                lit += self.peek_char
+                self.push_char()
+            if self.current_char == ".":
+                lit += self.current_char
                 self.push_char()
                 for i in range(2):
-                    if not self.peek_char.isdigit():
-                        self.add_syntax_error("Invalid char '{}' in IP literal", self.peek_char)
-                        self.push_char()
+                    if not self.current_char.isdigit():
                         return False
-                    while self.peek_char.isdigit():
-                        self.push_char()
+                    while self.current_char.isdigit():
                         lit += self.current_char
-                    if self.peek_char == ".":
-                        lit += self.peek_char
+                        self.push_char()
+                    if self.current_char == ".":
+                        lit += self.current_char
                         self.push_char()
                     else:
-                        self.push_char()
-                        self.add_syntax_error("Invalid char '{}' in IP literal", self.current_char)
                         return False
 
-                if not self.peek_char.isdigit():
-                    self.add_syntax_error("Invalid char '{}' in IP literal", self.peek_char)
+                if not self.current_char.isdigit():
                     return False
-                while self.peek_char.isdigit():
-                    self.push_char()
+                while self.current_char.isdigit():
                     lit += self.current_char
+                    self.push_char()
             self.add_token(tt, lit)
             return True
         return False
@@ -159,7 +157,7 @@ class Lexer:
                 tt = TokenType.OPERATOR_CLOSE_P
             case _:
                 return False
-        self.add_token(tt)
+        self.add_token(tt, self.current_char)
         return True
 
     def check_comment(self):
@@ -191,7 +189,7 @@ class Lexer:
             Token(
                 tt,
                 SourcePosition(
-                    self.source.get_filename(),
+                    self.source.get_path(),
                     self.line_number,
                     self.line_column,
                     self.source.line_indexes[-1]
@@ -205,7 +203,7 @@ class Lexer:
             CompilationError(
                 msg.format(*fmt),
                 SourcePosition(
-                    self.source.get_filename(),
+                    self.source.get_path(),
                     self.line_number,
                     self.line_column,
                     self.source.line_indexes[-1]

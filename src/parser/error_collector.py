@@ -1,5 +1,7 @@
 import math
 
+from src.logger import Colour
+
 class CompilerException(Exception):
     def __init__(self, msg, prefix="Error"):
         self.message = f"{prefix}: {msg}"
@@ -40,8 +42,8 @@ class ErrorCollector:
     def format_error(self, err):
         full_line = self.get_full_line(err.sp)
         full_line_n = full_line.strip()
-        desc = repr(err.desc).strip('"')
-        error_string = f"Error: {desc}\n\t{err.sp.line}| {full_line_n}\n\t"
+        desc = err.desc
+        error_string = f"{Colour.RED}Error{Colour.ENDC}: {desc}\n\t{err.sp.line}| {full_line_n}\n\t"
         padding = err.sp.column + n_digits(err.sp.line) + 1 - len(full_line) + len(full_line_n)
         error_string += " " * padding + "^"
         return error_string
@@ -54,7 +56,7 @@ class ErrorCollector:
 
     def show_errors(self):
         for file in self.errors:
-            print(f'File "{file}":')
+            print(f'File "{Colour.BOLD}{file}{Colour.ENDC}"')
             for err in self.errors[file]:
                 print(f"\t{self.format_error(err)}")
         self.raise_error()

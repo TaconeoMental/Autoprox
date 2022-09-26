@@ -4,28 +4,27 @@ def SCOPE MainReqScope
     & HEADER User-Agent like "curl/.*"
 end
 
-def SCOPE TestingReqScope(MainReqScope)
-    PATH like "/api/v\d/.*" // Like espera un regex como argumento
+def SCOPE TestingReqScope
+    in MainReqScope
+    & PATH like "/api/v\d/.*" // Like espera un regex como argumento
 end
 
 def SCOPE TestingRespScope
     HEADER Cookie like "^[0-9a-fA-F]{32}$"
 end
 
-def HEADER main_headers
-    User-Agent: "AutoProx/1.1"
-    Host: "evilhost.com"
-end
-
 intercept TestingReqScope req {
     #2 {
-        set HEADER main_headers
+        set HEADER {
+            User-Agent: "AutoProx/1.1"
+            Host: "evilhost.com"
+        }
         delete HEADER Authorization
     }
     set HEADER Connection: "Keep-Alive"
 }
 
-intercept TestingReqScope resp if SCOPE is TestingRespScope set {
+intercept TestingReqScope resp if in TestingRespScope set {
     STATUS_CODE: 200
     STATUS_MESSAGE: "Ok"
 }
@@ -34,17 +33,29 @@ intercept TestingReqScope resp if SCOPE is TestingRespScope set {
 intercept TestingReqScope  {
     req {
         #2 {
-            set HEADER main_headers
+            set HEADER {
+                User-Agent: "AutoProx/1.1"
+                Host: "evilhost.com"
+            }
             delete HEADER Authorization
         }
-        set HEADER Connection: Keep-Alive
+        set HEADER Connection: "Keep-Alive"
     }
 
     // Interceptamos la respuesta si está en el scope TestingRespScope
-    resp if SCOPE is TestingRespScope set {
+    resp if in TestingRespScope set {
         STATUS_CODE: 200
         STATUS_MESSAGE: Ok
     }
 }
+
+// Y a esto
+intercept TestingReqScope req #2 set HEADER User-Agent: "AutoProx/1.1"
+intercept TestingReqScope req #2 set HEADER Host: "evilhost.com"
+intercept TestingReqScope req #2 delete HEADER Authorization
+intercept TestingReqScope req set HEADER Connection: "Keep-Alive"
+
+intercept TestingReqScope resp if in TestingRespScope set STATUS_CODE: 200
+intercept TestingReqScope resp if in TestingRespScope set STATUS_MESSAGE: "Ok"
 
 serve 127.0.0.1 8081
