@@ -28,9 +28,15 @@ syn keyword apconfBuiltin
     \ STATUS_MESSAGE
     \ SCOPE
 
+syn keyword apconfOperatorKey
+    \ like
+    \ is
+    \ not
+    \ in
+
 syntax match apconfNumber "#\d\+"
 
-syntax match apconfOperator "&\||\|!\|like\|is\|not\|:\|="
+syntax match apconfOperator "&\||\|:\|="
 syntax match apconfComment "//.*$"
 
 
@@ -62,6 +68,7 @@ hi def link apconfKeywords Keyword
 hi def link apconfBuiltin Type
 hi def link apconfNumber Number
 hi def link apconfOperator Operator
+hi def link apconfOperatorKey Operator
 hi def link apconfComment Comment
 hi def link apconfIPAddr Number
 hi def link apconfIP6Addr Number
