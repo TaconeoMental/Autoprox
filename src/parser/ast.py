@@ -6,6 +6,10 @@ AST_SPACE = " " * AST_INDENTATION
 
 from src.parser.token import TokenType
 
+def return_not_empty(v1, v2):
+    if v1: return v1
+    return v2
+
 def pp_indentation(last):
     if last:
         print(AST_LAST, end="")
@@ -77,10 +81,20 @@ class ServeStatement:
 
 class InterceptStatement:
     def __init__(self):
-        self.what = list()
-        self.condition = None
-        self.action = None
-        self.body = None
+        self.what = InterceptStatementWhat()
+        self.condition = UnaryOperationExpression()
+        self.action = InterceptStatementActionSet()
+        self.body = Empty()
+
+    def is_empty(self):
+        return not (self.what or self.condition or self.action or self.body)
+
+    def __add__(self, other):
+        new = InterceptStatement()
+        new.what = self.what + other.what
+        new.condition = self.condition + other.condition
+        new.action = self.action + other.action
+        return new
 
     def pp_tree(self, indent, last):
         print(indent, end="")
@@ -101,22 +115,33 @@ class InterceptStatement:
 
 class InterceptStatementWhat:
     def __init__(self):
-        self.items = list()
+        self.identifier = Empty()
+        self.type = Empty()
+        self.number = Empty()
 
-    def add(self, *items):
-        for i in items:
-            if isinstance(i, InterceptStatementWhat):
-                self.items += i.items
-            else:
-                self.items.append(i)
-        return self
+    def __bool__(self):
+        return bool(self.identifier or self.type or self.number)
+
+    def __add__(self, other):
+        new = InterceptStatementWhat()
+        new.identifier = return_not_empty(self.identifier, other.identifier)
+        new.type = return_not_empty(self.type, other.type)
+        new.number = return_not_empty(self.number, other.number)
+        return new
 
     def pp_tree(self, indent, last):
         print(indent, end="")
         indent += pp_indentation(last)
         print("InterceptStatementWhat")
-        for index, value in enumerate(self.items):
-            value.pp_tree(indent + AST_SPACE, index == len(self.items) - 1)
+
+        print(indent + AST_MIDDLE + "Identifier")
+        self.identifier.pp_tree(indent + AST_LINE, True)
+
+        print(indent + AST_MIDDLE + "Type")
+        self.type.pp_tree(indent + AST_LINE, True)
+
+        print(indent + AST_LAST + "Number")
+        self.number.pp_tree(indent + AST_SPACE, True)
 
 class InterceptType:
     def __init__(self, value, tok):
@@ -132,9 +157,22 @@ class InterceptType:
 
 class InterceptStatementActionSet:
     def __init__(self):
-        self.token = None
-        self.what = None
-        self.value = None
+        self.token = Empty()
+        self.what = Empty()
+        self.value = Empty()
+
+    def __bool__(self):
+        return bool(self.token or self.what or self.value)
+
+    def __add__(self, other):
+        new = InterceptStatementActionSet()
+        new.token = return_not_empty(self.token, other.token)
+        if other.what:
+            new.what = self.what + other.what
+        else:
+            new.what = self.what
+        new.value = return_not_empty(self.value, other.value)
+        return new
 
     def pp_tree(self, indent, last):
         print(indent, end="")
@@ -163,6 +201,9 @@ class Empty:
 
     def __bool__(self):
         return False
+
+    def __add__(self, other):
+        return self
 
     def pp_tree(self, indent, last):
         print(indent, end="")
@@ -197,6 +238,12 @@ class Variable:
     def __init__(self):
         self.type = Empty()
         self.name = Empty()
+
+    def __add__(self, other):
+        new = Variable()
+        new.type = return_not_empty(self.type, other.type)
+        new.name = return_not_empty(self.name, other.name)
+        return new
 
     def pp_tree(self, indent, last):
         print(indent, end="")
@@ -248,9 +295,18 @@ class BinaryOperationExpression:
         self.right.pp_tree(indent + AST_SPACE, True)
 
 class UnaryOperationExpression:
-    def __init__(self, o, v):
-        self.operator = o
-        self.operand = v
+    def __init__(self):
+        self.operator = Empty()
+        self.operand = Empty()
+
+    def __bool__(self):
+        return bool(self.operator or self.operand)
+
+    def __add__(self, other):
+        new = UnaryOperationExpression()
+        new.operator = return_not_empty(self.operator, other.operator)
+        new.operand = return_not_empty(self.operand, other.operand)
+        return new
 
     def pp_tree(self, indent, last):
         print(indent, end="")
@@ -259,7 +315,10 @@ class UnaryOperationExpression:
         print("unaryOperationExpression")
 
         print(indent + AST_MIDDLE + "Operator")
-        print(indent + AST_LINE + str(self.operator))
+        if isinstance(self.operator, Empty):
+            self.operator.pp_tree(indent + AST_LINE, True)
+        else:
+            print(indent + AST_LINE + str(self.operator))
 
         print(indent + AST_LAST + "Operand")
         self.operand.pp_tree(indent + AST_SPACE, True)

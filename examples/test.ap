@@ -19,7 +19,6 @@ intercept TestingReqScope req {
             User-Agent: "AutoProx/1.1"
             Host: "evilhost.com"
         }
-        delete HEADER Authorization
     }
     set HEADER Connection: "Keep-Alive"
 }
@@ -37,7 +36,6 @@ intercept TestingReqScope  {
                 User-Agent: "AutoProx/1.1"
                 Host: "evilhost.com"
             }
-            delete HEADER Authorization
         }
         set HEADER Connection: "Keep-Alive"
     }
@@ -45,14 +43,13 @@ intercept TestingReqScope  {
     // Interceptamos la respuesta si está en el scope TestingRespScope
     resp if in TestingRespScope set {
         STATUS_CODE: 200
-        STATUS_MESSAGE: Ok
+        STATUS_MESSAGE: "Ok"
     }
 }
 
 // Y a esto
 intercept TestingReqScope req #2 set HEADER User-Agent: "AutoProx/1.1"
 intercept TestingReqScope req #2 set HEADER Host: "evilhost.com"
-intercept TestingReqScope req #2 delete HEADER Authorization
 intercept TestingReqScope req set HEADER Connection: "Keep-Alive"
 
 intercept TestingReqScope resp if in TestingRespScope set STATUS_CODE: 200

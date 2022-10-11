@@ -4,6 +4,13 @@ from src.parser.source_position import SourcePosition
 from src.parser.error_collector import CompilationError
 from src.logger import LOGGER
 
+def is_literal(tt):
+    valid_types = [
+        TokenType.LITERAL_INT,
+        TokenType.LITERAL_STR
+    ]
+    return tt in valid_types
+
 def is_value_type(tt):
     valid_types = [
         TokenType.KEY_T_PARAMS,
@@ -25,6 +32,24 @@ def is_empty_type(tt):
     ]
     return tt in valid_types
 
+class INTERCEPT_SECTION:
+    INTERCEPT    = 0x00
+    WHAT_ID      = 0x01
+    WHAT_TYPE    = 0x02
+    WHAT_NUM     = 0x03
+    COND_IF      = 0x04
+    COND_IN      = 0x05
+    COND_IN_VAR  = 99
+    COND_VAR     = 0x06
+    COND_OP      = 0x07
+    COND_LIT     = 0x08
+    ACTION       = 0x09
+    ACTION_SET   = 0x0A
+    ACTION_SET1  = 0x0B
+    ACTION_SET11 = 0x0C
+    ACTION_SET12 = 0x0D
+    ACTION_DEL   = 0x0E
+
 class Parser:
     def __init__(self, tokens, error_collector):
         self.tokens = iter(tokens)
@@ -37,6 +62,9 @@ class Parser:
 
         self.push_token()
         self.push_token()
+
+        # Necesario para parsear intercept,,,,,
+        self.last_valid = INTERCEPT_SECTION.INTERCEPT
 
     def push_token(self):
         self.current_token = self.peek_token
@@ -102,16 +130,16 @@ class Parser:
             case TokenType.KEY_A_SERVE:
                 return self.parse_serve_statement()
             case _:
+                self.add_parse_error(self.current_token, "Unexpected '{}'", self.current_token)
                 return False
 
     def parse_define_statement(self):
         stmt = ast.DefineStatement()
-        stmt.token = self.current_token
         self.consume_peek(TokenType.KEY_T_SCOPE)
         self.consume_peek(TokenType.IDENTIFIER)
+        stmt.token = self.current_token
         stmt.identifier = ast.Identifier(self.current_token.value,
                                          self.current_token)
-        # TODO: Añadir herencia
         if self.peek_token_equals(TokenType.OPERATOR_COLON):
             stmt.value = self.parse_define_value()
         else:
@@ -119,29 +147,185 @@ class Parser:
             self.consume_peek(TokenType.KEY_END)
         return stmt
 
-    def parse_intercept_statement(self):
-        stmt = ast.InterceptStatement()
-        stmt.token = self.current_token
-        stmt.what = self.parse_intercept_what()
-        stmt.condition = self.parse_intercept_condition()
-        stmt.action = self.parse_intercept_action()
-        if stmt.action and stmt.action.value:
-            if self.peek_token_equals(TokenType.OPERATOR_OPEN_C):
-                self.add_parse_error(self.peek_token,
-                                     "This intercept is complete, it can't have a body")
+    def parse_intercept_statement(self, stmt=None, level=None, is_body=False):
+
+        if is_body:
+            if stmt.is_empty():
+                return stmt
             stmt.body = ast.StatementList()
-        else:
-            stmt.body = self.parse_intercept_body()
+            valid = self.last_valid
+            self.consume_peek(TokenType.OPERATOR_OPEN_C)
+            while True:
+                b_stmt = self.parse_intercept_statement(None, valid)
+                if b_stmt.is_empty():
+                    break
+                stmt.body.statements.append(b_stmt)
+            self.consume_peek(TokenType.OPERATOR_CLOSE_C)
+            return stmt
+
+        if not stmt:
+            stmt = ast.InterceptStatement()
+        if not level:
+            level = INTERCEPT_SECTION.INTERCEPT
+
+        match level:
+            case INTERCEPT_SECTION.INTERCEPT:
+                stmt.token = self.current_token
+                stmt = self.parse_intercept_statement(stmt,
+                                                      INTERCEPT_SECTION.WHAT_ID)
+
+            case INTERCEPT_SECTION.WHAT_ID:
+                if self.peek_token_equals(TokenType.IDENTIFIER):
+                    self.push_token()
+                    self.last_valid = INTERCEPT_SECTION.WHAT_TYPE
+                    stmt.what.identifier = ast.Identifier(self.current_token.value, self.current_token)
+                stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.WHAT_TYPE)
+
+            case INTERCEPT_SECTION.WHAT_TYPE:
+                if self.peek_token.kind in (TokenType.KEY_REQ, TokenType.KEY_RESP):
+                    self.push_token()
+                    self.last_valid = INTERCEPT_SECTION.WHAT_NUM
+                    stmt.what.type = ast.InterceptType(self.current_token.value, self.current_token)
+                stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.WHAT_NUM)
+
+            case INTERCEPT_SECTION.WHAT_NUM:
+                if self.peek_token_equals(TokenType.LITERAL_NUM):
+                    self.push_token()
+                    self.last_valid = INTERCEPT_SECTION.COND_IF
+                    stmt.what.number = ast.Literal(self.current_token, self.current_token.value)
+                stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.COND_IF)
+
+            case INTERCEPT_SECTION.COND_IF:
+                if self.peek_token_equals(TokenType.KEY_IF):
+                    self.push_token()
+                    if self.peek_token_equals(TokenType.OPERATOR_IN):
+                        self.last_valid = INTERCEPT_SECTION.COND_IN
+                        stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.COND_IN)
+                    elif self.peek_token_equals(TokenType.IDENTIFIER):
+                        self.last= INTERCEPT_SECTION.COND_VAR
+                        stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.COND_VAR)
+                    else:
+                        self.last= INTERCEPT_SECTION.ACTION
+                        stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.ACTION)
+                else:
+                    self.last = INTERCEPT_SECTION.ACTION
+                    stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.ACTION)
+
+            case INTERCEPT_SECTION.COND_IN:
+                if self.peek_token_equals(TokenType.OPERATOR_IN):
+                    self.push_token()
+                    self.last_valid = INTERCEPT_SECTION.COND_IN_VAR
+                    stmt.condition = ast.UnaryOperationExpression()
+                    stmt.condition.operator = self.current_token
+                stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.COND_IN_VAR)
+
+            case INTERCEPT_SECTION.COND_IN_VAR:
+                if self.peek_token_equals(TokenType.IDENTIFIER):
+                    self.push_token()
+                    if not stmt.condition:
+                        stmt.condition = ast.UnaryOperationExpression()
+                    self.last_valid = INTERCEPT_SECTION.ACTION
+                    stmt.condition.operand = ast.Identifier(self.current_token.value, self.current_token)
+                stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.ACTION)
+
+            case INTERCEPT_SECTION.ACTION:
+                stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.ACTION_SET)
+
+            case INTERCEPT_SECTION.ACTION_SET:
+                if self.peek_token_equals(TokenType.KEY_A_SET):
+                    self.push_token()
+                    self.last_valid = INTERCEPT_SECTION.ACTION_SET1
+                    stmt.action = ast.InterceptStatementActionSet()
+                    stmt.action.token = self.current_token
+                stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.ACTION_SET1)
+
+            case INTERCEPT_SECTION.ACTION_SET1:
+                if is_value_type(self.peek_token.kind):
+                    self.push_token()
+                    if not stmt.action:
+                        stmt.action = ast.InterceptStatementActionSet()
+                    stmt.action.what = ast.Variable()
+                    stmt.action.what.type = ast.TypeIdentifier(self.current_token.value,
+                                                               self.current_token)
+                    self.last_valid = INTERCEPT_SECTION.ACTION_SET11
+                    stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.ACTION_SET11)
+                elif is_empty_type(self.peek_token.kind):
+                    self.push_token()
+                    if not stmt.action:
+                        stmt.action = ast.InterceptStatementActionSet()
+                    stmt.action.what = ast.TypeIdentifier(self.current_token.value, self.current_token)
+                    self.last_valid = INTERCEPT_SECTION.ACTION_SET12
+                    stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.ACTION_SET12)
+                else:
+                    stmt = self.parse_intercept_statement(stmt, INTERCEPT_SECTION.ACTION_SET11)
+                    #stmt = self.parse_intercept_statement(stmt, level, True)
+
+            case INTERCEPT_SECTION.ACTION_SET11:
+                if self.peek_token_equals(TokenType.IDENTIFIER):
+                    self.push_token()
+                    if not stmt.action:
+                        stmt.action = ast.InterceptStatementActionSet()
+                        stmt.action.what = ast.Variable()
+                    stmt.action.what.name = ast.Identifier(self.current_token.value, self.current_token)
+                    if self.peek_token_equals(TokenType.OPERATOR_COLON):
+                        self.push_token()
+                        if is_literal(self.peek_token.kind):
+                            self.push_token()
+                            stmt.action.value = ast.Literal(self.current_token,
+                                                            self.current_token.value)
+                            return stmt
+                        else:
+                            self.push_token()
+                            self.add_parse_error(self.current_token,
+                                                 "Cannot set {} to '{}'",
+                                                 stmt.action.what.name.value,
+                                                 self.current_token.value)
+                else:
+                    stmt = self.parse_intercept_statement(stmt, level, True)
+
+            case INTERCEPT_SECTION.ACTION_SET12:
+                if self.peek_token_equals(TokenType.OPERATOR_COLON):
+                    self.push_token()
+                    stmt.action.what.name = ast.Identifier(self.current_token.value, self.current_token)
+                    if is_literal(self.peek_token.kind):
+                        self.push_token()
+                        stmt.action.value = ast.Literal(self.current_token,
+                                                        self.current_token.value)
+                    else:
+                        self.push_token()
+                        self.add_parse_error(self.current_token,
+                                             "Cannot set {} to '{}'",
+                                             stmt.action.what.value,
+                                             self.current_token.value)
+                else:
+                    stmt = self.parse_intercept_statement(stmt, level, True)
+            case _:
+                self.add_parse_error(self.current_token, "???? {}", self.current_token)
+
         return stmt
 
     def parse_intercept_what(self):
         what = ast.InterceptStatementWhat()
+        what.identifier = self.parse_intercept_what_identifier()
+        whay.type = self.parse_intercept_what_type()
+
+    def parse_intercept_what_identifier(self):
         kind = self.peek_token.kind
         if kind == TokenType.IDENTIFIER:
             self.push_token()
-            iden = ast.Identifier(self.current_token.value, self.current_token)
-            what = what.add(iden)
-        return what.add(self.parse_intercept_what_2())
+            return ast.Identifier(self.current_token.value, self.current_token)
+        return ast.Empty()
+
+    def parse_intercept_what_type(self):
+        kind = self.peek_token.kind
+        if kind in (TokenType.KEY_REQ, TokenType.KEY_RESP):
+            self.push_token()
+            return ast.InterceptType(self.current_token.value,
+                                     self.current_token)
+        return ast.Empty()
+
+
+
 
     def parse_intercept_what_2(self):
         what = ast.InterceptStatementWhat()
@@ -314,14 +498,15 @@ class Parser:
 
     def parse_unary_operation(self):
         self.push_token()
-        operator = self.current_token
+        node = ast.UnaryOperationExpression()
+        node.operator = self.current_token
         if self.peek_token_equals(TokenType.IDENTIFIER):
             self.push_token()
-            operand = ast.Identifier(self.current_token.value,
-                                     self.current_token)
+            node.operand = ast.Identifier(self.current_token.value,
+                                          self.current_token)
         else:
-            operand = self.parse_primary_expression()
-        return ast.UnaryOperationExpression(operator, operand)
+            node.operand = self.parse_primary_expression()
+        return node
 
     def parse_compare_operation(self):
         match self.peek_token.kind:
@@ -353,5 +538,4 @@ class Parser:
             self.push_token()
             return ast.TypeIdentifier(self.current_token.value, self.current_token)
         else:
-            print("Test")
             return False

@@ -99,11 +99,10 @@ class Lexer:
             return True
         elif self.current_char == "#":
             tt = TokenType.LITERAL_NUM
-            self.push_char()
-            while self.current_char.isdigit():
-                lit += self.current_char
+            while self.peek_char.isdigit():
                 self.push_char()
-            if not self.current_char.isspace():
+                lit += self.current_char
+            if not self.peek_char.isspace():
                 self.add_syntax_error("'#' must be only followed by digits")
             self.add_token(tt, lit)
             return True

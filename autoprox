@@ -4,10 +4,8 @@ import argparse
 
 from src.logger import LOGGER, LEVEL_WARN
 from src.proxy import Proxy
-from src.parser.conf_file import ConfigFile
-from src.parser.lexer import Lexer
-from src.parser.parser import Parser
-from src.parser.error_collector import ErrorCollector, CompilerException
+from src.utils import print_banner
+from src.parser.error_collector import CompilerException
 
 
 def main():
@@ -16,8 +14,6 @@ def main():
     group_verbose = argparser.add_mutually_exclusive_group()
     group_verbose.add_argument("-v", type=int, default=5, help="Verbose count.")
     group_verbose.add_argument("-q", "--quiet", action="store_true", help="Quiet output. Just display necessary information.")
-    argparser.add_argument("-t", "--print-tokens", action="store_true", help="Print tokens produced by lexer.")
-    argparser.add_argument("-a", "--print-ast", action="store_true", help="Print AST produced by parser.")
     parsed_args = argparser.parse_args()
 
     if parsed_args.quiet:
@@ -25,37 +21,15 @@ def main():
     else:
         LOGGER.set_level(parsed_args.v)
 
+    if not parsed_args.quiet:
+        print_banner()
+
     try:
-        conf_file = ConfigFile(parsed_args.source)
-        err_coll = ErrorCollector(conf_file)
-
-        lexer = Lexer(conf_file, err_coll)
-        lexer.run()
-
-        if err_coll.has_errors():
-            err_coll.show_errors()
-
-        parser = Parser(lexer.tokens, err_coll)
-        parser.parse()
-
-        if parsed_args.print_tokens:
-            lexer.print_tokens()
-
-        if parsed_args.print_ast:
-            LOGGER.INFO("AST:")
-            parser.ast.pp_tree("", True)
-
+        main_proxy = Proxy("0.0.0.0", 8081, parsed_args.source)
+        main_proxy.run()
     except CompilerException as e:
         LOGGER.ERROR(e)
         return
-
-    if parsed_args.print_tokens or parsed_args.print_ast:
-        return
-
-    main_proxy = Proxy("0.0.0.0", 8081)
-    #main_proxy.set_config_file(parsed_args.source)
-    main_proxy.run()
-
 
 if __name__ == '__main__':
     main()
