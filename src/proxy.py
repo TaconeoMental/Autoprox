@@ -5,8 +5,6 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from functools import partial
 import time
 import ssl
-import threading
-
 from src.logger import LOGGER
 from src.builder import Builder
 from src.http import HTTPRequest
@@ -27,15 +25,17 @@ def generate_certificates(directory):
         os.mkdir(WEB_CERTS_DIR)
     subprocess.run(['openssl', 'genrsa', '-out', CERTKEY_PATH, '2048'],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+
+    # Generamos llave privada para CA
     subprocess.run(['openssl', 'genrsa', '-out', CAKEY_PATH, '2048'],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-    subprocess.run(['openssl', 'req', '-new', '-x509', '-days', '3650', '-key', CAKEY_PATH, '-out', CACERT_PATH, '-subj', f"/CN={ca_name}"],
+
+    # Certificado root
+    subprocess.run(['openssl', 'req', '-new', '-x509', '-days', '365', '-key', CAKEY_PATH, '-out', CACERT_PATH, '-subj', f"/CN={ca_name}"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
 
 class ProxyRequestHandler(BaseHTTPRequestHandler):
-    lock = threading.Lock()
-
     def __init__(self, p_version, ast, *args, **kwargs):
         self.protocol_version = p_version
         self.ast = ast
@@ -44,20 +44,18 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
     def do_CONNECT(self):
         host = self.path.split(":")[0]
         new_cert_path = op.join(WEB_CERTS_DIR, f"{host}.crt")
-        with self.lock:
-            if not op.exists(new_cert_path):
-                print("iai")
-                epoch = int(time.time() * 1000)
-                s1 = subprocess.run(['openssl', 'req', '-new', '-key', CERTKEY_PATH, '-subj', f"/CN={host}"],
-                               capture_output=True, check=True)
-                subprocess.run(['openssl', 'x509', '-req', '-days', '3650', '-CA', CACERT_PATH, '-CAkey', CAKEY_PATH, '-set_serial', str(epoch), '-out', new_cert_path],
-                               input=s1.stdout, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        if not op.exists(new_cert_path):
+            print("iai")
+            epoch = int(time.time() * 1000)
+            s1 = subprocess.run(['openssl', 'req', '-new', '-key', CERTKEY_PATH, '-subj', f"/CN={host}"],
+                           capture_output=True, check=True)
+            subprocess.run(['openssl', 'x509', '-req', '-days', '3650', '-CA', CACERT_PATH, '-CAkey', CAKEY_PATH, '-set_serial', str(epoch), '-out', new_cert_path],
+                           input=s1.stdout, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
         self.wfile.write(f"{self.protocol_version} 200 Connection Established\r\n\r\n".encode("utf-8"))
-
-        #self.connection = ssl.wrap_socket(self.connection, keyfile=CERTKEY_PATH, certfile=new_cert_path, server_side=True)
         context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
         context.load_cert_chain(new_cert_path, CERTKEY_PATH)
-        self.connection = context.wrap_socket(sock=self.connection, server_side=True)
+        self.connection = context.wrap_socket(sock=self.connection,
+                                              server_side=True)
         self.rfile = self.connection.makefile("rb", self.rbufsize)
         self.wfile = self.connection.makefile("wb", self.wbufsize)
 
@@ -71,23 +69,36 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
             self.send_file(CACERT_PATH)
             return
 
+        parsed_headers = self.parse_headers(self.headers)
+
+        url_path = self.path
+        if self.path[0] == '/':
+            if isinstance(self.connection, ssl.SSLSocket):
+                url_path = f"https://{parsed_headers['Host']}{self.path}"
+            else:
+                url_path = f"http://{parsed_headers['Host']}{self.path}"
+
         content_length = int(self.headers.get('Content-Length', 0)) # Devuelve 0 si no existe
         req_body = self.rfile.read(content_length) if content_length else None
         req_dir = {
-            "client_address": self.client_address,
+            "address": self.client_address,
             #"protocol_version": self.protocol_version,
             "request_version": self.request_version,
             "command": self.command,
-            "path": self.path,
-            "headers": self.parse_headers(self.headers),
+            "path": url_path,
+            "headers": parsed_headers,
             "body": req_body
         }
 
-        # for i in dir(self):
-        #    print(i, getattr(self, i))
-
         req = HTTPRequest.from_dict(req_dir)
         req.modify(self.ast)
+        response = req.request()
+        response.write(self)
+
+        #print(req)
+        #print(response)
+
+    do_POST = do_GET
 
     def parse_headers(self, headers):
         p_headers = dict()
@@ -104,9 +115,6 @@ class ProxyRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Disposition", f"attachment; filename={op.basename(path)}")
         self.end_headers()
         self.wfile.write(data)
-
-    def modify_body(self, body):
-        return body, False
 
 class Proxy:
     def __init__(self, bind, port, src):
